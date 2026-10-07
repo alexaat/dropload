@@ -1,3 +1,5 @@
+use if_addrs::get_if_addrs;
+use std::net::IpAddr;
 use std::{
     fs::File,
     io::{self, BufRead, BufReader, Read, Write},
@@ -6,11 +8,27 @@ use std::{
     thread,
 };
 
-pub fn start_server() {
-    thread::spawn(|| {
-        let listener = TcpListener::bind("0.0.0.0:0").unwrap();
-        let port = listener.local_addr().unwrap().port();
-        println!("Server running at http://localhost:{}", port);
+const HOST: &'static str = "http://127.0.0.1";
+
+pub fn start_server() -> String {
+    let mut host: Option<String> = None;
+
+    for interface in get_if_addrs().unwrap() {
+        if let IpAddr::V4(ip) = interface.ip() {
+            if !ip.is_loopback() {
+                println!("{}: {}", interface.name, ip);
+                if interface.name == "wlo1" {
+                    host = Some(ip.to_string());
+                }
+            }
+        }
+    }
+
+    let host = host.expect("unable to obtain host ip...");
+    let listener = TcpListener::bind("0.0.0.0:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    println!("Server running at {}:{}", host, port);
+    thread::spawn(move || {
         for stream in listener.incoming() {
             match stream {
                 Ok(stream) => {
@@ -24,6 +42,7 @@ pub fn start_server() {
             }
         }
     });
+    format!("http://{}:{}", host, port)
 }
 
 fn handle_connection(mut stream: TcpStream) -> io::Result<()> {

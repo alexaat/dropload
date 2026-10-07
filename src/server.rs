@@ -3,23 +3,27 @@ use std::{
     io::{self, BufRead, BufReader, Read, Write},
     net::{TcpListener, TcpStream},
     path::Path,
+    thread,
 };
 
 pub fn start_server() {
-    let listener = TcpListener::bind("0.0.0.0:8080").unwrap();
-    println!("Server running at http://localhost:8080");
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                if let Err(e) = handle_connection(stream) {
-                    eprintln!("Request failed: {e}");
+    thread::spawn(|| {
+        let listener = TcpListener::bind("0.0.0.0:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        println!("Server running at http://localhost:{}", port);
+        for stream in listener.incoming() {
+            match stream {
+                Ok(stream) => {
+                    if let Err(e) = handle_connection(stream) {
+                        eprintln!("Request failed: {e}");
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Connection failed: {e}");
                 }
             }
-            Err(e) => {
-                eprintln!("Connection failed: {e}");
-            }
         }
-    }
+    });
 }
 
 fn handle_connection(mut stream: TcpStream) -> io::Result<()> {

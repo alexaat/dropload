@@ -1,5 +1,8 @@
+use crate::App;
 use if_addrs::get_if_addrs;
 use std::net::IpAddr;
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::{
     fs::File,
     io::{self, BufRead, BufReader, Read, Write},
@@ -10,7 +13,7 @@ use std::{
 
 const HOST: &'static str = "http://127.0.0.1";
 
-pub fn start_server() -> String {
+pub fn start_server(app: Arc<Mutex<App>>) {
     let mut host: Option<String> = None;
 
     for interface in get_if_addrs().unwrap() {
@@ -27,17 +30,21 @@ pub fn start_server() -> String {
     let host = host.expect("unable to obtain host ip...");
     let listener = TcpListener::bind("0.0.0.0:0").unwrap();
     let port = listener.local_addr().unwrap().port();
+
+    app.lock().unwrap().host = Some(format!("http://{}:{}", host, port));
     println!("Server running at {}:{}", host, port);
 
-    let file_path = "/home/bocal/Downloads/alice.jpeg".to_string();
-    let file_name = "alice.jpeg".to_string();
+    //let file_path = "/home/bocal/Downloads/alice.jpeg".to_string();
+    //let file_name = "alice.jpeg".to_string();
+
+    //let app_clonned = Arc::clone(&app);
 
     thread::spawn(move || {
         for stream in listener.incoming() {
             match stream {
                 Ok(stream) => {
-                    if let Err(e) = handle_connection(stream, file_name.clone(), file_path.clone())
-                    {
+                    let app_clonned = Arc::clone(&app);
+                    if let Err(e) = handle_connection(app_clonned, stream) {
                         eprintln!("Request failed: {e}");
                     }
                 }
@@ -47,13 +54,35 @@ pub fn start_server() -> String {
             }
         }
     });
-    format!("http://{}:{}", host, port)
+
+    /*
+    thread::spawn({
+        let app = Arc::clone(&app);
+        move || {
+            for stream in listener.incoming() {
+                match stream {
+                    Ok(stream) => {
+                        let app_cloned = Arc::clone(&app);
+
+                        if let Err(e) = handle_connection(app_cloned, stream) {
+                            eprintln!("Request failed: {e}");
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Connection failed: {e}");
+                    }
+                }
+            }
+        }
+    });
+    */
 }
 
 fn handle_connection(
+    app: Arc<Mutex<App>>,
     mut stream: TcpStream,
-    file_name: String,
-    file_path: String,
+    //file_name: String,
+    //file_path: String,
 ) -> io::Result<()> {
     let mut reader = BufReader::new(&mut stream); // Read the HTTP request line.
     let mut request_line = String::new();
@@ -64,6 +93,8 @@ fn handle_connection(
     //     write_response(&mut stream, "404 Not Found", "text/plain", b"Not Found")?;
     //     return Ok(());
     // }
+    let file_path = app.lock().unwrap().file_path.clone().unwrap();
+    let file_name = app.lock().unwrap().file_name.clone().unwrap();
 
     let path = Path::new(&file_path);
     //let link = app.link.as_ref().unwrap();

@@ -1,4 +1,3 @@
-mod model;
 mod server;
 mod ui;
 use server::start_server;
@@ -6,6 +5,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use ui::run_ui;
 
+use qrcode_generator::qr::{Encoder, ErrorCorrection};
 use uuid::Uuid;
 
 // #[derive(Default)]
@@ -20,6 +20,7 @@ pub struct App {
     file_path: Option<String>,
     file_name: Option<String>,
     link: Option<String>,
+    qrcode: Option<Vec<Vec<bool>>>,
 }
 
 impl App {
@@ -28,6 +29,12 @@ impl App {
         let host = self.host.as_ref().expect("no host...");
         self.link = Some(format!("{}/{}", host, Uuid::now_v7()));
         self.file_name = Some(file_path.split("/").last().unwrap().to_string());
+
+        let symbol = Encoder::new(ErrorCorrection::Medium)
+            .encode_text(self.link.as_ref().unwrap())
+            .unwrap();
+
+        self.qrcode = Some(symbol.to_matrix());
     }
 }
 
@@ -37,6 +44,7 @@ fn main() {
         file_name: None,
         file_path: None,
         link: None,
+        qrcode: None,
     };
     let app = Arc::new(Mutex::new(app));
     start_server(Arc::clone(&app));

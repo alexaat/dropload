@@ -8,3 +8,4 @@ eframe = "0.36.2"
 rfd = "0.17"
 uuid = { version = "1.27.0", features = ["v7"] }
 if-addrs = "0.13"
+qrcode-generator = "6.1.2"

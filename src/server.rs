@@ -28,11 +28,16 @@ pub fn start_server() -> String {
     let listener = TcpListener::bind("0.0.0.0:0").unwrap();
     let port = listener.local_addr().unwrap().port();
     println!("Server running at {}:{}", host, port);
+
+    let file_path = "/home/bocal/Downloads/alice.jpeg".to_string();
+    let file_name = "alice.jpeg".to_string();
+
     thread::spawn(move || {
         for stream in listener.incoming() {
             match stream {
                 Ok(stream) => {
-                    if let Err(e) = handle_connection(stream) {
+                    if let Err(e) = handle_connection(stream, file_name.clone(), file_path.clone())
+                    {
                         eprintln!("Request failed: {e}");
                     }
                 }
@@ -45,17 +50,24 @@ pub fn start_server() -> String {
     format!("http://{}:{}", host, port)
 }
 
-fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
+fn handle_connection(
+    mut stream: TcpStream,
+    file_name: String,
+    file_path: String,
+) -> io::Result<()> {
     let mut reader = BufReader::new(&mut stream); // Read the HTTP request line.
     let mut request_line = String::new();
     reader.read_line(&mut request_line)?;
     println!("Request: {}", request_line.trim());
 
-    if !request_line.starts_with("GET /download ") {
-        write_response(&mut stream, "404 Not Found", "text/plain", b"Not Found")?;
-        return Ok(());
-    }
-    let path = Path::new("./file.txt");
+    // if !request_line.starts_with("GET /download ") {
+    //     write_response(&mut stream, "404 Not Found", "text/plain", b"Not Found")?;
+    //     return Ok(());
+    // }
+
+    let path = Path::new(&file_path);
+    //let link = app.link.as_ref().unwrap();
+    //let path = Path::new(link);
     let mut file = match File::open(path) {
         Ok(file) => file,
         Err(_) => {
@@ -76,10 +88,10 @@ fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
         "HTTP/1.1 200 OK\r\n\
         Content-Type: application/octet-stream\r\n\
         Content-Length: {}\r\n\
-        Content-Disposition: attachment; filename=\"file.txt\"\r\n\
+        Content-Disposition: attachment; filename=\"{}\"\r\n\
         Connection: close\r\n\
         \r\n",
-        size
+        size, file_name
     )?;
 
     // Stream the file to the client.

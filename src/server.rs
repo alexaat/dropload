@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::{
     fs::File,
-    io::{self, BufRead, BufReader, Read, Write},
+    io::{BufRead, BufReader, Read, Write},
     net::{TcpListener, TcpStream},
     path::Path,
     thread,
@@ -14,7 +14,7 @@ use std::{
 pub fn start_server(app: Arc<Mutex<App>>) -> Result<(), String> {
     let mut host: Option<String> = None;
 
-    for interface in get_if_addrs().unwrap() {
+    for interface in get_if_addrs().map_err(|e| format!("cannot get ip addresses...\r\n{}", e))? {
         if let IpAddr::V4(ip) = interface.ip() {
             if !ip.is_loopback() {
                 if interface.name == "wlo1" {
@@ -25,61 +25,67 @@ pub fn start_server(app: Arc<Mutex<App>>) -> Result<(), String> {
         }
     }
 
-    let host = host.expect("unable to obtain host ip...");
-    let listener = TcpListener::bind("0.0.0.0:0").unwrap();
-    let port = listener.local_addr().unwrap().port();
+    let host = host.ok_or("unable to obtain host ip...")?;
+    let listener = TcpListener::bind("0.0.0.0:0")
+        .map_err(|e| format!("cannot bind tcp listener...\r\n{}", e))?;
+    let port = listener
+        .local_addr()
+        .map_err(|e| format!("unable to obtain port...\r\n{}", e))?;
+    let port = port.port();
 
-    app.lock().unwrap().host = Some(format!("http://{}:{}", host, port));
+    app.lock()
+        .map_err(|e| format!("app data access error...\r\n{}", e))?
+        .host = Some(format!("http://{}:{}", host, port));
+
     thread::spawn(move || {
         for stream in listener.incoming() {
             match stream {
                 Ok(stream) => {
                     let app_clonned = Arc::clone(&app);
                     if let Err(e) = handle_connection(app_clonned, stream) {
-                        eprintln!("Request failed: {e}");
+                        eprintln!("{e}");
                     }
                 }
                 Err(e) => {
-                    eprintln!("Connection failed: {e}");
+                    eprintln!("connection failed...\r\n{e}");
                 }
             }
         }
     });
-
-    /*
-    thread::spawn({
-        let app = Arc::clone(&app);
-        move || {
-            for stream in listener.incoming() {
-                match stream {
-                    Ok(stream) => {
-                        let app_cloned = Arc::clone(&app);
-
-                        if let Err(e) = handle_connection(app_cloned, stream) {
-                            eprintln!("Request failed: {e}");
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("Connection failed: {e}");
-                    }
-                }
-            }
-        }
-    });
-    */
     Ok(())
 }
 
-fn handle_connection(app: Arc<Mutex<App>>, mut stream: TcpStream) -> io::Result<()> {
-    let mut reader = BufReader::new(&mut stream); // Read the HTTP request line.
+fn handle_connection(app: Arc<Mutex<App>>, mut stream: TcpStream) -> Result<(), String> {
+    let mut reader = BufReader::new(&mut stream);
     let mut request_line = String::new();
-    reader.read_line(&mut request_line)?;
-    //println!("Request: {}", request_line.trim());
+    reader
+        .read_line(&mut request_line)
+        .map_err(|e| format!("cannot read request...\r\n{}", e))?;
 
-    let file_path = app.lock().unwrap().file_path.clone().unwrap();
-    let file_name = app.lock().unwrap().file_name.clone().unwrap();
-    let host = app.lock().unwrap().host.clone().unwrap();
-    let link = app.lock().unwrap().link.clone().unwrap();
+    let file_path = app
+        .lock()
+        .map_err(|e| format!("cannot get app data...\r\n{}", e))?
+        .file_path
+        .clone()
+        .ok_or("file path is empty...")?;
+    let file_name = app
+        .lock()
+        .map_err(|e| format!("cannot get app data...\r\n{}", e))?
+        .file_name
+        .clone()
+        .ok_or("file name is empty")?;
+    let host = app
+        .lock()
+        .map_err(|e| format!("cannot get app data...\r\n{}", e))?
+        .host
+        .clone()
+        .ok_or("host is empty")?;
+    let link = app
+        .lock()
+        .map_err(|e| format!("cannot get app data...\r\n{}", e))?
+        .link
+        .clone()
+        .ok_or("host is empty")?;
     let url = link.trim_start_matches(&host);
 
     if !request_line.starts_with(format!("GET {}", url).as_str()) {
@@ -100,7 +106,10 @@ fn handle_connection(app: Arc<Mutex<App>>, mut stream: TcpStream) -> io::Result<
             return Ok(());
         }
     };
-    let size = file.metadata()?.len();
+    let size = file
+        .metadata()
+        .map_err(|e| format!("cannot get file metadata...\r\n{}", e))?
+        .len();
 
     // Send HTTP headers.
     write!(
@@ -112,18 +121,25 @@ fn handle_connection(app: Arc<Mutex<App>>, mut stream: TcpStream) -> io::Result<
         Connection: close\r\n\
         \r\n",
         size, file_name
-    )?;
+    )
+    .map_err(|e| format!("cannot write response...\r\n{}", e))?;
 
     // Stream the file to the client.
     let mut buffer = [0u8; 64 * 1024];
     loop {
-        let n = file.read(&mut buffer)?;
+        let n = file
+            .read(&mut buffer)
+            .map_err(|e| format!("cannot read file...\r\n{}", e))?;
         if n == 0 {
             break;
         }
-        stream.write_all(&buffer[..n])?;
+        stream
+            .write_all(&buffer[..n])
+            .map_err(|e| format!("cannot write response...\r\n{}", e))?;
     }
-    stream.flush()?;
+    stream
+        .flush()
+        .map_err(|e| format!("cannot flush response...\r\n{}", e))?;
     Ok(())
 }
 
@@ -132,8 +148,7 @@ fn write_response(
     status: &str,
     content_type: &str,
     body: &[u8],
-) -> io::Result<()> {
-    println!("write_response()");
+) -> Result<(), String> {
     write!(
         stream,
         "HTTP/1.1 {}\r\n\
@@ -144,8 +159,13 @@ fn write_response(
         status,
         content_type,
         body.len()
-    )?;
-    stream.write_all(body)?;
-    stream.flush()?;
+    )
+    .map_err(|e| format!("cannot write response...\r\n{}", e))?;
+    stream
+        .write_all(body)
+        .map_err(|e| format!("cannot write response...\r\n{}", e))?;
+    stream
+        .flush()
+        .map_err(|e| format!("cannot flush response...\r\n{}", e))?;
     Ok(())
 }

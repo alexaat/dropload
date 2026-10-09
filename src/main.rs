@@ -1,18 +1,11 @@
 mod server;
 mod ui;
+use qrcode_generator::qr::{Encoder, ErrorCorrection};
 use server::start_server;
 use std::sync::Arc;
 use std::sync::Mutex;
 use ui::run_ui;
-
-use qrcode_generator::qr::{Encoder, ErrorCorrection};
 use uuid::Uuid;
-
-// #[derive(Default)]
-// pub struct Link {
-//     file_path: Option<String>,
-//     link: Option<String>,
-// }
 
 #[derive(Debug)]
 pub struct App {
@@ -47,6 +40,6 @@ fn main() {
         qrcode: None,
     };
     let app = Arc::new(Mutex::new(app));
-    start_server(Arc::clone(&app));
-    run_ui(app).expect("fail to start application");
+    let result = start_server(Arc::clone(&app));
+    run_ui(app).expect("fail to start application...");
 }

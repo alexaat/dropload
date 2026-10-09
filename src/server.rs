@@ -11,17 +11,15 @@ use std::{
     thread,
 };
 
-const HOST: &'static str = "http://127.0.0.1";
-
-pub fn start_server(app: Arc<Mutex<App>>) {
+pub fn start_server(app: Arc<Mutex<App>>) -> Result<(), String> {
     let mut host: Option<String> = None;
 
     for interface in get_if_addrs().unwrap() {
         if let IpAddr::V4(ip) = interface.ip() {
             if !ip.is_loopback() {
-                println!("{}: {}", interface.name, ip);
                 if interface.name == "wlo1" {
                     host = Some(ip.to_string());
+                    break;
                 }
             }
         }
@@ -32,13 +30,6 @@ pub fn start_server(app: Arc<Mutex<App>>) {
     let port = listener.local_addr().unwrap().port();
 
     app.lock().unwrap().host = Some(format!("http://{}:{}", host, port));
-    println!("Server running at {}:{}", host, port);
-
-    //let file_path = "/home/bocal/Downloads/alice.jpeg".to_string();
-    //let file_name = "alice.jpeg".to_string();
-
-    //let app_clonned = Arc::clone(&app);
-
     thread::spawn(move || {
         for stream in listener.incoming() {
             match stream {
@@ -76,29 +67,27 @@ pub fn start_server(app: Arc<Mutex<App>>) {
         }
     });
     */
+    Ok(())
 }
 
-fn handle_connection(
-    app: Arc<Mutex<App>>,
-    mut stream: TcpStream,
-    //file_name: String,
-    //file_path: String,
-) -> io::Result<()> {
+fn handle_connection(app: Arc<Mutex<App>>, mut stream: TcpStream) -> io::Result<()> {
     let mut reader = BufReader::new(&mut stream); // Read the HTTP request line.
     let mut request_line = String::new();
     reader.read_line(&mut request_line)?;
-    println!("Request: {}", request_line.trim());
+    //println!("Request: {}", request_line.trim());
 
-    // if !request_line.starts_with("GET /download ") {
-    //     write_response(&mut stream, "404 Not Found", "text/plain", b"Not Found")?;
-    //     return Ok(());
-    // }
     let file_path = app.lock().unwrap().file_path.clone().unwrap();
     let file_name = app.lock().unwrap().file_name.clone().unwrap();
+    let host = app.lock().unwrap().host.clone().unwrap();
+    let link = app.lock().unwrap().link.clone().unwrap();
+    let url = link.trim_start_matches(&host);
+
+    if !request_line.starts_with(format!("GET {}", url).as_str()) {
+        write_response(&mut stream, "404 Not Found", "text/plain", b"Not Found")?;
+        return Ok(());
+    }
 
     let path = Path::new(&file_path);
-    //let link = app.link.as_ref().unwrap();
-    //let path = Path::new(link);
     let mut file = match File::open(path) {
         Ok(file) => file,
         Err(_) => {

@@ -40,7 +40,7 @@ fn main() {
         file_path: None,
         link: None,
         qrcode: None,
-        error_message: Some("Error".to_string()),
+        error_message: None,
     };
     let app = Arc::new(Mutex::new(app));
     if let Err(error_message) = start_server(Arc::clone(&app)) {
@@ -49,5 +49,5 @@ fn main() {
             Err(e) => eprintln!("cannot access app data...\r\n{}", e),
         }
     }
-    run_ui(app).expect("fail to start application...");
+    let _ = run_ui(app).map_err(|e| format!("fail to start application...\r\n{}", e));
 }

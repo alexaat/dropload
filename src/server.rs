@@ -43,12 +43,25 @@ pub fn start_server(app: Arc<Mutex<App>>) -> Result<(), String> {
                 Ok(stream) => {
                     let app_clonned = Arc::clone(&app);
                     if let Err(e) = handle_connection(app_clonned, stream) {
-                        eprintln!("{e}");
+                        match app.lock() {
+                            Ok(lock) => {
+                                if let Err(e) = lock.channel.0.send(format!("{}", e)) {
+                                    eprintln!("cannot channel data.../r/n{}", e)
+                                };
+                            }
+                            Err(e) => eprintln!("cannot get app data.../r/n{}", e),
+                        }
                     }
                 }
-                Err(e) => {
-                    eprintln!("connection failed...\r\n{e}");
-                }
+                Err(e) => match app.lock() {
+                    Ok(lock) => {
+                        if let Err(e) = lock.channel.0.send(format!("connection failed...\r\n{e}"))
+                        {
+                            eprintln!("cannot channel data.../r/n{}", e)
+                        };
+                    }
+                    Err(e) => eprintln!("cannot get app data.../r/n{}", e),
+                },
             }
         }
     });

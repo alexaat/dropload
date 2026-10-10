@@ -1,9 +1,12 @@
 mod server;
 mod ui;
+use crate::mpsc::Sender;
 use qrcode_generator::qr::{Encoder, ErrorCorrection};
 use server::start_server;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::mpsc;
+use std::sync::mpsc::Receiver;
 use ui::run_ui;
 use uuid::Uuid;
 
@@ -15,6 +18,7 @@ pub struct App {
     link: Option<String>,
     qrcode: Option<Vec<Vec<bool>>>,
     error_message: Option<String>,
+    channel: (Sender<String>, Receiver<String>),
 }
 
 impl App {
@@ -34,6 +38,8 @@ impl App {
 }
 
 fn main() {
+    let (tx, rx) = mpsc::channel();
+
     let app = App {
         host: None,
         file_name: None,
@@ -41,6 +47,7 @@ fn main() {
         link: None,
         qrcode: None,
         error_message: None,
+        channel: (tx, rx),
     };
     let app = Arc::new(Mutex::new(app));
     if let Err(error_message) = start_server(Arc::clone(&app)) {
@@ -49,5 +56,5 @@ fn main() {
             Err(e) => eprintln!("cannot access app data...\r\n{}", e),
         }
     }
-    let _ = run_ui(app).map_err(|e| format!("fail to start application...\r\n{}", e));
+    let _ = run_ui(Arc::clone(&app)).map_err(|e| format!("fail to start application...\r\n{}", e));
 }

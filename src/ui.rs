@@ -31,6 +31,14 @@ pub fn run_ui(app: Arc<Mutex<App>>) -> eframe::Result {
 
 impl eframe::App for GuiApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        match self.app.lock() {
+            Ok(mut lock) => {
+                if let Ok(error_message) = lock.channel.1.try_recv() {
+                    lock.error_message = Some(error_message);
+                }
+            }
+            Err(e) => self.ui_error_message = Some(format!("cannot get app data...\r\n{}", e)),
+        }
         let files = ui.ctx().input(|i| i.raw.dropped_files.clone());
         for file in files {
             let path = file.path().display().to_string();
@@ -103,11 +111,11 @@ impl eframe::App for GuiApp {
             }
 
             if let Some(error_message) = &self.app.lock().unwrap().error_message {
-                ui.add_space(160.0);
+                ui.add_space(50.0);
                 ui.heading(RichText::new(error_message).color(Color32::RED));
             }
             if let Some(ui_error_message) = &self.ui_error_message {
-                ui.add_space(20.0);
+                ui.add_space(10.0);
                 ui.heading(RichText::new(ui_error_message).color(Color32::RED));
             }
         });

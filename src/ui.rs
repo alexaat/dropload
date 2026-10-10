@@ -1,5 +1,6 @@
 use crate::App;
 use eframe::egui;
+use egui::{Color32, RichText};
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -29,41 +30,49 @@ impl eframe::App for GuiApp {
         let files = ui.ctx().input(|i| i.raw.dropped_files.clone());
         for file in files {
             let path = file.path().display().to_string();
-            self.app.lock().unwrap().set_file_path(path);
-            //app.set_file_path(path);
+            //self.app.lock().unwrap().set_file_path(path);
+            match self.app.lock() {
+                Ok(mut lock) => {
+                    if let Err(error_message) = lock.set_file_path(path) {
+                        lock.error_message = Some(error_message);
+                    }
+                }
+                Err(e) => eprintln!("cannot get app data...\r\n{}", e),
+            }
         }
         ui.vertical_centered(|ui| {
-            //let info = format!("{:?}", self.app.lock().unwrap());
-            //ui.heading(format!("info: {}", info));
             ui.add_space(100.0);
             ui.heading("Drag a file here or pick file");
             ui.add_space(10.0);
             if ui.button("Choose file...").clicked() {
                 if let Some(path) = rfd::FileDialog::new().pick_file() {
                     let path = path.display().to_string();
-                    self.app.lock().unwrap().set_file_path(path);
+                    //self.app.lock().unwrap().set_file_path(path);
+                    match self.app.lock() {
+                        Ok(mut lock) => {
+                            if let Err(error_message) = lock.set_file_path(path) {
+                                lock.error_message = Some(error_message);
+                            }
+                        }
+                        Err(e) => eprintln!("cannot get app data...\r\n{}", e),
+                    }
                 }
             }
-            if let Some(file_name) = &self.app.lock().unwrap().file_name {
-                let text = format!("file name: {:?}", file_name);
-                ui.heading(text);
-            }
             if let Some(file_path) = &self.app.lock().unwrap().file_path {
-                let text = format!("file path: {:?}", file_path);
+                ui.add_space(30.0);
+                let text = format!("file: {:?}", file_path);
                 ui.heading(text);
             }
 
             if let Some(link) = &self.app.lock().unwrap().link {
                 ui.add_space(10.0);
                 let text = format!("{:?}", link);
-                ui.heading("use link to download file:");
+                ui.heading("use link to download file or use qr code");
                 ui.add_space(10.0);
                 ui.heading(text);
             }
 
             if let Some(qrcode) = &self.app.lock().unwrap().qrcode {
-                ui.add_space(10.0);
-                ui.heading("or scan qr code to download file");
                 let painter = ui.painter();
                 for y in 0..qrcode.len() {
                     for x in 0..qrcode[y].len() {
@@ -85,6 +94,11 @@ impl eframe::App for GuiApp {
                         );
                     }
                 }
+            }
+
+            if let Some(error_message) = &self.app.lock().unwrap().error_message {
+                ui.add_space(160.0);
+                ui.heading(RichText::new(error_message).color(Color32::RED));
             }
         });
     }

@@ -72,52 +72,80 @@ impl eframe::App for GuiApp {
                     }
                 }
             }
-            if let Some(file_path) = &self.app.lock().unwrap().file_path {
-                ui.add_space(30.0);
-                let text = format!("file: {:?}", file_path);
-                ui.heading(text);
+            match &self.app.lock() {
+                Ok(lock) => match &lock.file_path {
+                    Some(file_path) => {
+                        ui.add_space(30.0);
+                        let text = format!("file: {:?}", file_path);
+                        ui.heading(text);
+                    }
+                    None => {}
+                },
+                Err(e) => self.ui_error_message = Some(format!("cannot get app data...\r\n{}", e)),
+            }
+            match &self.app.lock() {
+                Ok(lock) => match &lock.link {
+                    Some(link) => {
+                        ui.add_space(10.0);
+                        ui.heading("use link to download file or use qr code");
+                        ui.add_space(10.0);
+                        ui.heading(format!("{:?}", link));
+                    }
+                    None => {}
+                },
+                Err(e) => self.ui_error_message = Some(format!("cannot get app data...\r\n{}", e)),
             }
 
-            if let Some(link) = &self.app.lock().unwrap().link {
-                ui.add_space(10.0);
-                let text = format!("{:?}", link);
-                ui.heading("use link to download file or use qr code");
-                ui.add_space(10.0);
-                ui.heading(text);
+            match &self.app.lock() {
+                Ok(lock) => match &lock.qrcode {
+                    Some(qrcode) => {
+                        let painter = ui.painter();
+                        for y in 0..qrcode.len() {
+                            for x in 0..qrcode[y].len() {
+                                let pos = egui::pos2(
+                                    QR_CODE_OFFSET_X + (x as f32) * PIXEL_SIZE,
+                                    QR_CODE_OFFSET_Y + (y as f32) * PIXEL_SIZE,
+                                );
+
+                                let color = if qrcode[y][x] {
+                                    egui::Color32::WHITE
+                                } else {
+                                    egui::Color32::BLACK
+                                };
+
+                                painter.rect_filled(
+                                    egui::Rect::from_min_size(
+                                        pos,
+                                        egui::vec2(PIXEL_SIZE, PIXEL_SIZE),
+                                    ),
+                                    0.0,
+                                    color,
+                                );
+                            }
+                        }
+                    }
+                    None => {}
+                },
+                Err(e) => self.ui_error_message = Some(format!("cannot get app data...\r\n{}", e)),
             }
-
-            if let Some(qrcode) = &self.app.lock().unwrap().qrcode {
-                let painter = ui.painter();
-                for y in 0..qrcode.len() {
-                    for x in 0..qrcode[y].len() {
-                        let pos = egui::pos2(
-                            QR_CODE_OFFSET_X + (x as f32) * PIXEL_SIZE,
-                            QR_CODE_OFFSET_Y + (y as f32) * PIXEL_SIZE,
-                        );
-
-                        let color = if qrcode[y][x] {
-                            egui::Color32::WHITE
-                        } else {
-                            egui::Color32::BLACK
-                        };
-
-                        painter.rect_filled(
-                            egui::Rect::from_min_size(pos, egui::vec2(PIXEL_SIZE, PIXEL_SIZE)),
-                            0.0,
-                            color,
-                        );
+            // Footer
+            egui::Panel::bottom("footer").show(ui, |ui| {
+                ui.set_height(40.0);
+                match &self.app.lock() {
+                    Ok(lock) => {
+                        if let Some(error_message) = &lock.error_message {
+                            ui.heading(RichText::new(error_message).color(Color32::RED));
+                        }
+                    }
+                    Err(e) => {
+                        self.ui_error_message = Some(format!("cannot get app data...\r\n{}", e))
                     }
                 }
-            }
 
-            if let Some(error_message) = &self.app.lock().unwrap().error_message {
-                ui.add_space(50.0);
-                ui.heading(RichText::new(error_message).color(Color32::RED));
-            }
-            if let Some(ui_error_message) = &self.ui_error_message {
-                ui.add_space(10.0);
-                ui.heading(RichText::new(ui_error_message).color(Color32::RED));
-            }
+                if let Some(ui_error_message) = &self.ui_error_message {
+                    ui.heading(RichText::new(ui_error_message).color(Color32::RED));
+                }
+            });
         });
     }
 }

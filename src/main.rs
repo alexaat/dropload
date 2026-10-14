@@ -27,7 +27,13 @@ impl App {
         self.file_path = Some(file_path.clone());
         let host = self.host.as_ref().ok_or("cannot get host...")?;
         self.link = Some(format!("{}/{}", host, Uuid::now_v7()));
-        self.file_name = Some(file_path.split("/").last().unwrap().to_string());
+        self.file_name = Some(
+            file_path
+                .split("/")
+                .last()
+                .ok_or(format!("invalid file path {}", file_path))?
+                .to_string(),
+        );
 
         let symbol = Encoder::new(ErrorCorrection::Medium)
             .encode_text(self.link.as_ref().ok_or("cannot get link...")?)

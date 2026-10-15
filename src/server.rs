@@ -1,6 +1,7 @@
 use crate::App;
-//use if_addrs::get_if_addrs;
+use std::io;
 use std::net::IpAddr;
+use std::net::UdpSocket;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::{
@@ -10,27 +11,11 @@ use std::{
     path::Path,
     thread,
 };
-use std::io;
-use std::net::UdpSocket;
 
 pub fn start_server(app: Arc<Mutex<App>>) -> Result<(), String> {
-    //let mut host: Option<String> = None;
-    // for interface in get_if_addrs().map_err(|e| format!("cannot get ip addresses...\r\n{}", e))? {
-    //     if let IpAddr::V4(ip) = interface.ip() {
-    //         if !ip.is_loopback() {
-    //             if interface.name == "en1" {
-    //             //if interface.name == "wlo1" {
-    //                 host = Some(ip.to_string());
-    //                 break;
-    //             }
-    //         }
-    //     }
-    // }
-    //println!("{:?}", get_local_ip());
-    //let host = host.ok_or("unable to obtain host ip...")?;
-    //let host = "192.168.0.179".to_string();
-
-    let host = get_local_ip().map_err(|e| format!("unable to obtain host ip...\r\n{}", e) )?.to_string();
+    let host = get_local_ip()
+        .map_err(|e| format!("unable to obtain host ip...\r\n{}", e))?
+        .to_string();
     let listener = TcpListener::bind("0.0.0.0:0")
         .map_err(|e| format!("cannot bind tcp listener...\r\n{}", e))?;
     let port = listener

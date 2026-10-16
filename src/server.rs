@@ -61,9 +61,12 @@ pub fn start_server(app: Arc<Mutex<App>>) -> Result<(), String> {
 fn handle_connection(app: Arc<Mutex<App>>, mut stream: TcpStream) -> Result<(), String> {
     let mut reader = BufReader::new(&mut stream);
     let mut request_line = String::new();
-    reader
-        .read_line(&mut request_line)
-        .map_err(|e| format!("cannot read request...\r\n{}", e))?;
+
+    if let Err(e) = reader.read_line(&mut request_line) {
+        if e.kind() != io::ErrorKind::ConnectionReset {
+            return Err(format!("cannot read request...\r\n{}", e));
+        }
+    }
 
     let file_path = app
         .lock()

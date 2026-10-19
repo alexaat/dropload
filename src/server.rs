@@ -95,7 +95,6 @@ fn handle_connection(app: Arc<Mutex<App>>, mut stream: TcpStream) -> Result<(), 
     let url = link.trim_start_matches(&host);
 
     if !request_line.starts_with(format!("GET {}", url).as_str()) {
-        write_response(&mut stream, "404 Not Found", "text/plain", b"Not Found")?;
         return Ok(());
     }
 
@@ -108,7 +107,8 @@ fn handle_connection(app: Arc<Mutex<App>>, mut stream: TcpStream) -> Result<(), 
                 "404 Not Found",
                 "text/plain",
                 b"File not found",
-            )?;
+            )
+            .map_err(|e| format!("cannot write response...\r\n{}", e))?;
             return Ok(());
         }
     };
@@ -154,7 +154,7 @@ fn write_response(
     status: &str,
     content_type: &str,
     body: &[u8],
-) -> Result<(), String> {
+) -> Result<(), std::io::Error> {
     write!(
         stream,
         "HTTP/1.1 {}\r\n\
@@ -165,14 +165,9 @@ fn write_response(
         status,
         content_type,
         body.len()
-    )
-    .map_err(|e| format!("cannot write response...\r\n{}", e))?;
-    stream
-        .write_all(body)
-        .map_err(|e| format!("cannot write response...\r\n{}", e))?;
-    stream
-        .flush()
-        .map_err(|e| format!("cannot flush response...\r\n{}", e))?;
+    )?;
+    stream.write_all(body)?;
+    stream.flush()?;
     Ok(())
 }
 
